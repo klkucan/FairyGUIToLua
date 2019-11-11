@@ -1,29 +1,16 @@
 package {
-
 import fairygui.editor.plugin.ICallback;
 import fairygui.editor.plugin.IFairyGUIEditor;
 import fairygui.editor.plugin.IPublishData;
 import fairygui.editor.plugin.IPublishHandler;
-import fairygui.editor.publish.FileTool;
+import fairygui.editor.publish.gencode.GenCodeUtils;
+import fairygui.editor.plugin.IEditorUIProject;
 
 import flash.filesystem.File;
 import flash.filesystem.FileMode;
 import flash.filesystem.FileStream;
 
-import fairygui.editor.plugin.IEditorUIProject;
-
-import flash.external.ExternalInterface;
-
-import mx.graphics.GradientEntry;
-import mx.rpc.xml.SchemaTypeRegistry;
-
-/*
-   1. print info
-        stepCallback.addMsg("info");
-        stepCallback.callOnFail();
- */
-
-public final class GenerateLuaCodePlugin implements IPublishHandler {
+public class GenLuaCode implements IPublishHandler {
     public static const FILE_MARK:String = "--This is an automatically generated class by FairyGUI. Please do not modify it.";
 
     public var publishData:IPublishData;
@@ -37,11 +24,11 @@ public final class GenerateLuaCodePlugin implements IPublishHandler {
 
     protected var sortedClasses:Array = [];
     protected var prefix:String = "";
+    protected var fileExt:String = "";
 
     private var _editor:IFairyGUIEditor;
 
-
-    public function GenerateLuaCodePlugin(editor:IFairyGUIEditor) {
+    public function GenLuaCode(editor:IFairyGUIEditor) {
         _editor = editor;
     }
 
@@ -54,6 +41,10 @@ public final class GenerateLuaCodePlugin implements IPublishHandler {
         if (prefix == null) {
             prefix = "";
         }
+        fileExt = _editor.project.customProperties["file_extension"];
+        if (fileExt == null) {
+            fileExt = "lua";
+        }
 
         clearLogFile();
 
@@ -62,8 +53,9 @@ public final class GenerateLuaCodePlugin implements IPublishHandler {
             return false;
         }
 
-        init("lua");
-        loadTemplate("Lua");
+        init(fileExt);
+//        loadTemplate("Lua");
+
         stepCallback.callOnSuccess();
         return true;
     }
@@ -74,12 +66,11 @@ public final class GenerateLuaCodePlugin implements IPublishHandler {
         var oldFiles:Array = null;
         var file:File = null;
         var fileContent:String = null;
-        var project:IEditorUIProject = _editor.project;
+        var project:Object = _editor.project;
         this.projectSettings = project.getSettings("publish");
         try {
-            //path = this.projectSettings.codePath;
-            path = _editor.project.basePath + "\\assets\\Scripts";
-            //  path = UtilsStr.formatStringByName(path, project.customProperties);
+            path = this.projectSettings.codePath;
+            path = UtilsStr.formatStringByName(path, project.customProperties);
             targetFolder = new File(project.basePath).resolvePath(path);
             if (!targetFolder.exists) {
                 targetFolder.createDirectory();
@@ -93,8 +84,7 @@ public final class GenerateLuaCodePlugin implements IPublishHandler {
             stepCallback.callOnFail();
             return;
         }
-        this.packageName = publishData.targetUIPackage.name;
-
+        this.packageName = PinYinUtils.toPinyin(publishData.targetUIPackage.name, false, false, false);
         this.packageFolder = new File(targetFolder.nativePath + File.separator + this.packageName + "_Lua");
         if (!this.projectSettings.packageName || this.projectSettings.packageName.length == 0) {
             this.packagePath = this.packageName;
@@ -105,65 +95,57 @@ public final class GenerateLuaCodePlugin implements IPublishHandler {
             oldFiles = this.packageFolder.getDirectoryListing();
             for each(file in oldFiles) {
                 if (!(file.isDirectory || file.extension != fileExtName)) {
-                    fileContent = FileTool.readFileByFile(file);
+                    fileContent = UtilsFile.loadString(file);
+                    if (UtilsStr.startsWith(fileContent, FILE_MARK)) {
+                        UtilsFile.deleteFile(file);
+                    }
                 }
             }
         } else {
             this.packageFolder.createDirectory();
         }
-        //GenCodeUtils.prepare(publishData);
+        GenCodeUtils.prepare(publishData);
         this.sortedClasses.length = 0;//清空数组
-
         for each(var classInfo:Object in publishData.outputClasses) {
-            // Tsai 2019-11-11 20:23:15
-            // Content: 此处的sortedClasses记录的只有GComponent，而在FGUI中一个页面也是以GComponent为单位，
-            // 可以看做是一个Canvas。在生成代码时会解析GComponent中的所有元素，并将一个GComponent中的所有元素
-            // 的绑定放到以GComponent name。
+            stepCallback.addMsg("init-> outputClasses :" + classInfo.superClassName);
             if (classInfo.superClassName == "GComponent") {
                 this.sortedClasses.push(classInfo);
             }
         }
+
         this.sortedClasses.sortOn("classId");
     }
 
     protected function loadTemplate(param1:String):void {
-        var contentArray:Object = null;
-        var project:IEditorUIProject = _editor.project;
-        // Tsai 2019-11-11 15:27:15
-        // 这里用directory是这个变量的本意
-        // as3： File 物件代表檔案或目錄的路徑。這可能是現有檔案或目錄，或是尚未存在的檔案或目錄
-        var directory:File = new File(project.basePath + "/template/" + param1);
-        if (directory.exists) {
-            contentArray = this.loadTemplate2(directory);
-            if (contentArray["Lua"]) {
-                this.createFile(contentArray);
+        var _loc3_:Object = null;
+        var project:Object = publishData['project'];
+        var _loc2_:File = new File(project.basePath + "/template/" + param1);
+        if (_loc2_.exists) {
+            _loc3_ = this.loadTemplate2(_loc2_);
+            if (_loc3_["Binder"] && _loc3_["Component"]) {
+                this.createFile(_loc3_);
                 return;
             }
         }
-
-        // File.applicationDirectory得到是当前编辑器的路径
-        directory = File.applicationDirectory.resolvePath("template/" + param1);
-        // Tsai 2019-11-11 15:26:52
-        // Content: 现在用的模板来自 https://github.com/qufangliu/Plugin_FairyGUI_Lua/tree/master/out
-        contentArray = this.loadTemplate2(directory);
-        this.createFile(contentArray);
+        _loc2_ = File.applicationDirectory.resolvePath("template/" + param1);
+        _loc3_ = this.loadTemplate2(_loc2_);
+        this.createFile(_loc3_);
     }
 
     private function loadTemplate2(param1:File):Object {
-        var templateFile:File = null;
-        var fileName:String = null;
-        var templateFiles:Array = param1.getDirectoryListing();
-        var contents:Object = {};
-        for each(templateFile in templateFiles) {
-            if (templateFile.extension == "template") {
-                fileName = templateFile.name.replace(".template", "");
-                contents[fileName] = FileTool.readFileByFile(templateFile);
+        var _loc4_:File = null;
+        var _loc5_:String = null;
+        var _loc2_:Array = param1.getDirectoryListing();
+        var _loc3_:Object = {};
+        for each(_loc4_ in _loc2_) {
+            if (_loc4_.extension == "template") {
+                _loc5_ = _loc4_.name.replace(".template", "");
+                _loc3_[_loc5_] = UtilsFile.loadString(_loc4_);
             }
         }
-        return contents;
+        return _loc3_;
     }
 
-    // 生成lua文件
     protected function createFile(param1:*):void {
         var binderName:String = null;
         var binderContext:String = null;
@@ -179,8 +161,7 @@ public final class GenerateLuaCodePlugin implements IPublishHandler {
         var transitionIndex:int = 0;
 
         for each(var classInfo:Object in sortedClasses) {
-//            stepCallback.addMsg("TSAI 0 -- " + classInfo.className);
-            className = /*prefix +*/ classInfo.className;
+            className = prefix + classInfo.className;
             classContext = param1["Component"];
             classContent = [];
             childIndex = 0;
@@ -193,17 +174,14 @@ public final class GenerateLuaCodePlugin implements IPublishHandler {
             classContext = classContext.split("{className}").join(className);
             classContext = classContext.replace("{componentName}", classInfo.superClassName);
             classContext = classContext.replace("{uiPath}", "ui://" + publishData.targetUIPackage.id + classInfo.classId);
-
             for each(var memberInfo:Object in classInfo.members) {
-
                 if (!checkIsUseDefaultName(memberInfo.name)) {
                     var memberName:String = "self." + memberInfo.name;
-
                     if (memberInfo.type == "Controller") {
                         if (projectSettings.getMemberByName) {
                             classContent.push("\t" + memberName + " = self:GetController(\"" + memberInfo.name + "\");");
                         } else {
-                            classContent.push("\t" + memberName + " = UIHelper.GetController(self.unityObject," + controllerIndex + ");");
+                            classContent.push("\t" + memberName + " = self:GetControllerAt(" + controllerIndex + ");");
                         }
                         controllerIndex++;
                     } else if (memberInfo.type == "Transition") {
@@ -217,53 +195,26 @@ public final class GenerateLuaCodePlugin implements IPublishHandler {
                         if (projectSettings.getMemberByName) {
                             classContent.push("\t" + memberName + " = self:GetChild(\"" + memberInfo.name + "\");");
                         } else {
-                            classContent.push("\t" + memberName + " = UIHelper.GetChild(self.unityObject," + childIndex + ");");
-                            if (memberInfo.type == "GButton") {
-                                classContent.push("\t" + "UIHelper.BindOnClickEvent(" + memberName + ",function() " + memberInfo.name + "OnClickCallBack(self) end)");
-                            }
+                            classContent.push("\t" + memberName + " = self:GetChildAt(" + childIndex + ");");
                         }
                         childIndex++;
                     }
                 }
             }
-            classContent.push("--\t<CODE-GENERATE>{OnOpen}\n" + "--\t</CODE-GENERATE>{OnOpen}\n")
             classContext = classContext.replace("{content}", classContent.join("\r\n"));
-            classContext = classContext + "\r\n\r\n";
-            for each(var _memberInfo:Object in classInfo.members) {
-
-                var str:String = WriteOnClickFunc(_memberInfo);
-                classContext = classContext + str;
-            }
-
-            classContext = classContext + "--\t<CODE-USERAREA>{user_area}\n" + "--\t</CODE-USERAREA>{user_area}\n";
-
-            /*binderRequire.push("require('"+ className +"')")
-            binderContent.push("fgui.register_extension(" + className + ".URL, " + className + ");");*/
-            var path:String = packageFolder.nativePath + File.separator + className + ".lua";
-            FileTool.writeFile(path, FILE_MARK + "\n\n" + classContext);
-            //  UtilsFile.saveString(new File(packageFolder.nativePath + File.separator + className + ".lua"), FILE_MARK + "\n\n" + classContext);
+            binderRequire.push("require('" + className + "')")
+            binderContent.push("fgui.register_extension(" + className + ".URL, " + className + ");");
+            UtilsFile.saveString(new File(packageFolder.nativePath + File.separator + className + "." + fileExt), FILE_MARK + "\n\n" + classContext);
         }
 
-        /*binderName = packageName + "Binder";
+        binderName = packageName + "Binder";
         binderContext = param1["Binder"];
         binderContext = binderContext.replace("{packageName}", packagePath);
         binderContext = binderContext.split("{className}").join(binderName);
         binderContext = binderContext.replace("{bindRequire}", binderRequire.join("\r\n"));
         binderContext = binderContext.replace("{bindContent}", binderContent.join("\r\n"));
-        UtilsFile.saveString(new File(packageFolder.nativePath + File.separator + binderName + ".lua"), FILE_MARK + "\n\n" + binderContext);*/
+        UtilsFile.saveString(new File(packageFolder.nativePath + File.separator + binderName + "." + fileExt), FILE_MARK + "\n\n" + binderContext);
         stepCallback.callOnSuccess();
-    }
-
-    private function WriteOnClickFunc(_memberInfo:Object):String {
-        var str:String = "";
-        if (_memberInfo.type == "GComponent") {
-            var funcName:String = _memberInfo.name + "OnClickCallBack";
-            str = str + "function " + funcName + "(self)\r\n" +
-                    "--\t<CODE-GENERATE>{" + funcName + "}\r\n" +
-                    "--\t</CODE-GENERATE>{" + funcName + "}\r\n" +
-                    "end\r\n\r\n"
-        }
-        return str;
     }
 
     private function checkIsUseDefaultName(name:String):Boolean {

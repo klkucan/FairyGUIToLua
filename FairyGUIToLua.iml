@@ -2,12 +2,9 @@
 <module type="Flex" version="4">
   <component name="FlexBuildConfigurationManager" active="FairyGUIToLua">
     <configurations>
-      <configuration name="FairyGUIToLua" target-platform="Desktop" output-type="Library" output-file="FairyGUIToLua.swc" output-folder="$MODULE_DIR$/out/production/FairyGUIToLua">
+      <configuration name="FairyGUIToLua" target-platform="Desktop" output-type="Library" output-file="FairyGUIToLua.swc" output-folder="E:/Program Files/FairyGUI-Editor/plugins">
         <dependencies target-player="11.1" framework-linkage="External">
           <entries>
-            <entry library-id="7caeab9b-4889-4d06-b3bf-cd48d040ac28">
-              <dependency linkage="External" />
-            </entry>
             <entry library-name="libs" library-level="project">
               <dependency linkage="Merged" />
             </entry>
@@ -29,17 +26,6 @@
     </content>
     <orderEntry type="jdk" jdkName="flex_sdk_4.6" jdkType="Flex SDK Type (new)" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="module-library" exported="">
-      <library type="flex">
-        <properties id="7caeab9b-4889-4d06-b3bf-cd48d040ac28" />
-        <CLASSES>
-          <root url="file://$MODULE_DIR$/libs" />
-        </CLASSES>
-        <JAVADOC />
-        <SOURCES />
-        <jarDirectory url="file://$MODULE_DIR$/libs" recursive="false" />
-      </library>
-    </orderEntry>
     <orderEntry type="library" exported="" name="libs" level="project" />
   </component>
 </module>

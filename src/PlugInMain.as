@@ -1,26 +1,32 @@
-package
-{
-    import flash.events.Event;
+package {
+import flash.events.Event;
 
-    import fairygui.editor.plugin.IFairyGUIEditor;
+import fairygui.editor.plugin.IFairyGUIEditor;
 
-    /**
-     * 插件入口类，名字必须为PlugInMain。每个项目打开都会创建一个新的PlugInMain实例，并传入当前的编辑器句柄；
-     * 项目关闭时dispose被调用，可以在这里处理一些清理的工作（如果有）。
-     */
-    public class PlugInMain
-    {
-        private var _editor:IFairyGUIEditor;
+import flash.external.ExternalInterface;
 
-        public function PlugInMain(editor:IFairyGUIEditor)
-        {
-            _editor = editor;
+/**
+ * 插件入口类，名字必须为PlugInMain。每个项目打开都会创建一个新的PlugInMain实例，并传入当前的编辑器句柄；
+ * 项目关闭时dispose被调用，可以在这里处理一些清理的工作（如果有）。
+ */
+public class PlugInMain {
+    private var _editor:IFairyGUIEditor;
 
-            _editor.registerPublishHandler(new GenerateLuaCodePlugin(_editor));
-        }
+    public function PlugInMain(editor:IFairyGUIEditor) {
+        _editor = editor;
 
-        public function dispose():void
-        {
-        }
+//        _editor.registerPublishHandler(new GenLuaCode(_editor));
+        _editor.registerPublishHandler(new GenerateLuaCodePlugin(_editor));
+
+//        _editor.registerPublishHandler(new AutoGenerateCodePlugin(_editor));
+
     }
+
+    private function onClickSet(evt:Event):void {
+        _editor.alert("test");
+    }
+
+    public function dispose():void {
+    }
+}
 }
